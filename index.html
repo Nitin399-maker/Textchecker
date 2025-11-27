@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR Spell Check & Decimal Validator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="text-center text-primary">OCR Spell Check & Decimal Validator</h1>
+                <p class="text-center text-muted">Upload images, extract text, check spelling, validate decimals, and export to PDF</p>
+            </div>
+        </div>
+        <div class="row">
+            <!-- Input Image Section -->
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-image me-2"></i>Input Image
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- File Input -->
+                        <div class="mb-3">
+                            <label for="imageInput" class="form-label fw-bold">Upload Image</label>
+                            <input type="file" class="form-control" id="imageInput" accept="image/*">
+                            <div class="form-text">
+                                <small>Supported formats: BMP, GIF, TIFF, JPEG, PNG, EPS, WEBP</small>
+                            </div>
+                        </div>
+                        <!-- Drag and Drop Area -->
+                        <div id="dropArea" class="border border-dashed border-3 border-secondary rounded p-5 text-center mb-4" 
+                             style="cursor: pointer; transition: all 0.3s ease;">
+                            <i class="bi bi-cloud-upload fs-1 text-muted"></i>
+                            <p class="mt-3 mb-0 text-muted">Drag and drop an image here or click to browse</p>
+                        </div>
+                        <!-- LLM API Configuration -->
+                        <div class="border rounded p-3 bg-light">
+                            <h6 class="fw-bold mb-3">
+                                <i class="bi bi-gear me-2"></i>LLM API Configuration
+                            </h6>
+                            <div class="mb-3">
+                                <label for="apiKey" class="form-label">API Key</label>
+                                <input type="password" class="form-control" id="apiKey" 
+                                       placeholder="Enter your OpenAI API key">
+                            </div>
+                            <div class="mb-3">
+                                <label for="apiEndpoint" class="form-label">API Endpoint</label>
+                                <input type="url" class="form-control" id="apiEndpoint" 
+                                       value="https://api.openai.com/v1/chat/completions"
+                                       placeholder="API endpoint URL">
+                            </div>
+                            <div class="mb-3">
+                                <label for="modelSelect" class="form-label">Model</label>
+                                <select class="form-select" id="modelSelect">
+                                    <option value="gpt-4o-mini">GPT-4o Mini</option>
+                                    <option value="gpt-5-mini">GPT 5 Mini</option>
+                                </select>
+                            </div>
+                        </div>
+                        <!-- Process Button -->
+                        <button id="processBtn" class="btn btn-success btn-lg w-100 mt-3" disabled>
+                            <i class="bi bi-play-circle me-2"></i>Process Image
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Image Preview Section -->
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-eye me-2"></i>Image Preview
+                        </h5>
+                        <button id="downloadBtn" class="btn btn-light d-none">
+                            <i class="bi bi-download me-2"></i>Download PDF
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="imagePreview" class="text-center text-muted">
+                            <i class="bi bi-image fs-1 text-muted"></i>
+                            <p class="mt-3 mb-0">No image uploaded</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- OCR Results Section -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div id="resultsSection" class="card shadow-sm d-none">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i class="bi bi-file-text me-2"></i>OCR Results & Issues
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="extractedText" class="mb-4">
+                            <h6 class="fw-bold">Extracted Text:</h6>
+                            <div id="textContent" class="p-3 border rounded bg-light" style="white-space: pre-wrap; font-family: monospace;"></div>
+                        </div>
+                        <div id="issuesFound">
+                            <h6 class="fw-bold">Issues Found:</h6>
+                            <div id="issuesList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Correction Modal -->
+    <div class="modal fade" id="correctionModal" tabindex="-1" aria-labelledby="correctionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="correctionModalLabel">
+                        <i class="bi bi-pencil-square me-2"></i>Correction Suggestion
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <h6 class="text-danger fw-bold">Original:</h6>
+                            <div id="originalText" class="p-3 bg-danger bg-opacity-10 border border-danger rounded"></div>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-success fw-bold">Suggested:</h6>
+                            <div id="suggestedText" class="p-3 bg-success bg-opacity-10 border border-success rounded"></div>
+                        </div>
+                    </div>
+                    <div class="mt-3 p-3 bg-info bg-opacity-10 rounded">
+                        <p class="mb-0">
+                            <strong>Issue Type:</strong> 
+                            <span id="issueType" class="badge bg-info"></span>
+                        </p>
+                        <p class="mb-0 mt-2">
+                            <strong>Description:</strong> 
+                            <span id="issueDescription"></span>
+                        </p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" id="rejectBtn">
+                        <i class="bi bi-x-circle me-2"></i>No
+                    </button>
+                    <button type="button" class="btn btn-success" id="acceptBtn">
+                        <i class="bi bi-check-circle me-2"></i>Yes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Progress Modal -->
+    <div class="modal fade" id="progressModal" tabindex="-1" aria-labelledby="progressModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="progressModalLabel">
+                        <i class="bi bi-gear me-2"></i>Processing
+                    </h5>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p id="progressText" class="mb-0">Processing image...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Typo.js Library -->
+    <script src="https://cdn.jsdelivr.net/gh/cfinke/Typo.js/typo/typo.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        class OCRSpellChecker {
+            constructor() {
+                this.uploadedImage = null;
+                this.extractedText = '';
+                this.detectedIssues = [];
+                this.acceptedCorrections = [];
+                this.currentIssueIndex = 0;
+                this.dictionary = null;
+                this.pdfLibraryLoaded = false;
+                this.originalImageBase64 = null;
+                this.progressModalInstance = null; // Store modal instance
+                
+                this.checkPDFLibrary();
+                this.initializeSpellChecker();
+                this.setupEventListeners();
+            }
+            
+            checkPDFLibrary() {
+                if (typeof jsPDF !== 'undefined') {
+                    this.pdfLibraryLoaded = true;
+                    console.log('jsPDF library loaded successfully');
+                } else {
+                    setTimeout(() => {
+                        if (window.jspdf && window.jspdf.jsPDF) {
+                            this.pdfLibraryLoaded = true;
+                            console.log('jsPDF library loaded from window.jspdf');
+                        } else {
+                            console.warn('jsPDF library not found');
+                        }
+                    }, 1000);
+                }
+            }
+            
+            async initializeSpellChecker() {
+                try {
+                    console.log('Initializing spell checker...');
+                    // Load Hunspell dictionary files
+                    this.dictionary = new Typo("en_US", await this.fetchFile("en_US.aff"), await this.fetchFile("en_US.dic"));
+                    console.log('Spell checker initialized successfully');
+                } catch (error) {
+                    console.warn('Spell checker initialization failed:', error);
+                    console.warn('Spell checking will be disabled');
+                }
+            }
+            
+            async fetchFile(path) {
+                try {
+                    const response = await fetch(path);
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch ${path}: ${response.status}`);
+                    }
+                    return await response.text();
+                } catch (error) {
+                    console.warn(`Could not load dictionary file ${path}:`, error);
+                    throw error;
+                }
+            }
+            
+            setupEventListeners() {
+                const imageInput = document.getElementById('imageInput');
+                const dropArea = document.getElementById('dropArea');
+                const processBtn = document.getElementById('processBtn');
+                const downloadBtn = document.getElementById('downloadBtn');
+                const acceptBtn = document.getElementById('acceptBtn');
+                const rejectBtn = document.getElementById('rejectBtn');
+                
+                imageInput.addEventListener('change', (e) => this.handleFileSelect(e));
+                dropArea.addEventListener('click', () => imageInput.click());
+                dropArea.addEventListener('dragover', (e) => this.handleDragOver(e));
+                dropArea.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+                dropArea.addEventListener('drop', (e) => this.handleDrop(e));
+                processBtn.addEventListener('click', () => this.processImage());
+                downloadBtn.addEventListener('click', () => this.downloadPDF());
+                acceptBtn.addEventListener('click', () => this.acceptCorrection());
+                rejectBtn.addEventListener('click', () => this.rejectCorrection());
+            }
+            
+            handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    this.validateAndProcessFile(file);
+                }
+            }
+            
+            handleDragOver(event) {
+                event.preventDefault();
+                const dropArea = document.getElementById('dropArea');
+                dropArea.classList.add('border-primary', 'bg-primary', 'bg-opacity-10');
+            }
+            
+            handleDragLeave(event) {
+                event.preventDefault();
+                const dropArea = document.getElementById('dropArea');
+                dropArea.classList.remove('border-primary', 'bg-primary', 'bg-opacity-10');
+            }
+            
+            handleDrop(event) {
+                event.preventDefault();
+                const dropArea = document.getElementById('dropArea');
+                dropArea.classList.remove('border-primary', 'bg-primary', 'bg-opacity-10');
+                
+                const files = Array.from(event.dataTransfer.files);
+                if (files.length > 0) {
+                    this.validateAndProcessFile(files[0]);
+                }
+            }
+            
+            validateAndProcessFile(file) {
+                const allowedTypes = ['image/bmp', 'image/gif', 'image/tiff', 'image/jpeg', 'image/jpg', 'image/png', 'image/eps', 'image/webp'];
+                
+                if (!allowedTypes.includes(file.type) && !file.type.startsWith('image/')) {
+                    alert('Only image format is allowed.');
+                    return;
+                }
+                this.uploadedImage = file;
+                this.displayImagePreview(file);
+                document.getElementById('processBtn').disabled = false;
+            }
+            
+            displayImagePreview(file) {
+                const preview = document.getElementById('imagePreview');
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    // Store original high-quality base64 for PDF generation
+                    this.originalImageBase64 = e.target.result;
+                    
+                    preview.innerHTML = `
+                        <img src="${e.target.result}" class="img-fluid rounded shadow" 
+                             style="max-height: 400px; max-width: 100%;" alt="Uploaded image">
+                        <p class="mt-2 text-muted small">${file.name}</p>
+                    `;
+                };
+                
+                reader.readAsDataURL(file);
+            }
+            
+            async processImage() {
+                const apiKey = document.getElementById('apiKey').value.trim();
+                const apiEndpoint = document.getElementById('apiEndpoint').value.trim();
+                
+                if (!apiKey || !apiEndpoint) {
+                    alert('Please provide both API key and endpoint.');
+                    return;
+                }
+                
+                this.progressModalInstance = new bootstrap.Modal(document.getElementById('progressModal'));
+                this.progressModalInstance.show();
+                
+                try {
+                    document.getElementById('progressText').textContent = 'Extracting text from image...';
+                    this.extractedText = await this.extractTextFromImage(apiKey, apiEndpoint);
+                    
+                    document.getElementById('progressText').textContent = 'Analyzing text for issues...';
+                    this.detectedIssues = this.analyzeTextForIssues(this.extractedText);
+                    
+                    this.displayResults();
+                    this.hideProgressModal();
+                    
+                    if (this.detectedIssues.length > 0) {
+                        this.currentIssueIndex = 0;
+                        this.acceptedCorrections = [];
+                        this.showNextCorrection();
+                    } else {
+                        document.getElementById('downloadBtn').classList.remove('d-none');
+                        alert('No spelling or decimal issues found!');
+                    }
+                    
+                } catch (error) {
+                    this.hideProgressModal();
+                    console.error('Error processing image:', error);
+                    alert(`Error processing image: ${error.message}`);
+                }
+            }
+            
+            // Method to properly hide progress modal
+            hideProgressModal() {
+                if (this.progressModalInstance) {
+                    this.progressModalInstance.hide();
+                    this.progressModalInstance = null;
+                }
+                
+                // Also try to get existing instance and hide it
+                const existingModal = bootstrap.Modal.getInstance(document.getElementById('progressModal'));
+                if (existingModal) {
+                    existingModal.hide();
+                }
+                
+                // Force remove modal backdrop if it persists
+                setTimeout(() => {
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    backdrops.forEach(backdrop => backdrop.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.paddingRight = '';
+                    document.body.style.overflow = '';
+                }, 100);
+            }
+            
+            async extractTextFromImage(apiKey, apiEndpoint) {
+                const base64Image = await this.convertImageToBase64(this.uploadedImage);
+                const selectedModel = document.getElementById('modelSelect').value;
+                
+                // Enhanced prompt for better text extraction
+                const extractionPrompt = `You are a professional OCR (Optical Character Recognition) system. 
+TASK: Extract ALL visible text, numbers, symbols, and characters from this image with maximum accuracy.
+REQUIREMENTS:
+1. Extract EVERY piece of text, no matter how small or faint
+2. Preserve the original layout, spacing, and line breaks as much as possible
+3. Include ALL numbers, dates, prices, codes, and identifiers
+4. Extract text from headers, footers, watermarks, stamps, and margins
+5. Include punctuation marks, special characters, and symbols
+6. If text is rotated, tilted, or at an angle, still extract it
+7. Extract text from tables, forms, and structured layouts while preserving structure
+8. Include handwritten text if visible
+9. Do not interpret or modify the text - extract exactly as written
+10. If some text is unclear, make your best attempt but mark uncertainty with [?]
+11. <must> do not modify or correct any extracted text give me the exact text from the image withougt changing anything <must>
+FORMAT: Return only the extracted text content. Do not add explanations, descriptions, or commentary.
+IMAGE TO PROCESS:`;
+                
+                const payload = {
+                    model: selectedModel,
+                    messages: [
+                        {
+                            role: "user",
+                            content: [
+                                {
+                                    type: "text",
+                                    text: extractionPrompt
+                                },
+                                {
+                                    type: "image_url",
+                                    image_url: {
+                                        url: base64Image,
+                                        detail: "high"  // Use high detail for better OCR
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                };
+                
+                const response = await fetch(apiEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`API request failed: ${response.status} - ${errorData.error?.message || response.statusText}`);
+                }
+                
+                const data = await response.json();
+                const extractedContent = data.choices[0].message.content;
+                
+                console.log('Raw extracted text:', extractedContent);
+                return extractedContent;
+            }
+            
+            convertImageToBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+            
+            analyzeTextForIssues(text) {
+                const issues = [];
+                
+                if (!text || text.trim().length === 0) {
+                    console.warn('No text extracted to analyze');
+                    return issues;
+                }
+                
+                // Split into words but preserve original text structure
+                const words = text.split(/\s+/);
+                
+                words.forEach((word, index) => {
+                    if (!word.trim()) return; // Skip empty words
+                    
+                    // Check for decimal comma FIRST (before cleaning)
+                    const decimalCommaMatches = word.match(/\d+,\d{1,3}(?!\d)/g);
+                    if (decimalCommaMatches) {
+                        decimalCommaMatches.forEach(match => {
+                            // Avoid flagging thousands separators like 15,096
+                            // Only flag likely decimal numbers (comma followed by 1-3 digits at word end)
+                            if (/^\d{1,4},\d{1,3}$/.test(match)) {
+                                issues.push({
+                                    type: 'decimal',
+                                    original: match,
+                                    suggested: match.replace(',', '.'),
+                                    position: index,
+                                    description: 'Decimal comma detected (should use decimal point)'
+                                });
+                            }
+                        });
+                    }
+                    
+                    // Check for spelling errors using Typo.js
+                    const cleanWord = word.replace(/[^\w]/g, '').toLowerCase();
+                    if (cleanWord && cleanWord.length > 2 && this.dictionary) {
+                        // Skip pure numbers
+                        if (!/^\d+$/.test(cleanWord)) {
+                            // Skip common abbreviations and codes
+                            const skipPatterns = [
+                                /^[A-Z]{2,}$/,    // All caps abbreviations
+                                /^\d+[A-Z]+$/,   // Numbers with letters (codes)
+                                /^[A-Z]+\d+$/    // Letters with numbers (codes)
+                            ];
+                            
+                            const shouldSkip = skipPatterns.some(pattern => pattern.test(word.replace(/[^\w]/g, '')));
+                            
+                            if (!shouldSkip && !this.dictionary.check(cleanWord)) {
+                                const suggestions = this.dictionary.suggest(cleanWord);
+                                if (suggestions && suggestions.length > 0) {
+                                    issues.push({
+                                        type: 'spelling',
+                                        original: word,
+                                        suggested: word.replace(new RegExp(cleanWord, 'i'), suggestions[0]),
+                                        position: index,
+                                        description: 'Misspelled word detected'
+                                    });
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                console.log(`Found ${issues.length} issues:`, issues);
+                return issues;
+            }
+            
+            displayResults() {
+                const resultsSection = document.getElementById('resultsSection');
+                const textContent = document.getElementById('textContent');
+                const issuesList = document.getElementById('issuesList');
+                
+                if (!resultsSection || !textContent || !issuesList) {
+                    console.error('Required elements not found');
+                    return;
+                }
+                
+                resultsSection.classList.remove('d-none');
+                
+                // Display extracted text with preserved formatting
+                textContent.textContent = this.extractedText;
+                
+                if (this.detectedIssues.length === 0) {
+                    issuesList.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>No issues found!</div>';
+                } else {
+                    let issuesHtml = `<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>${this.detectedIssues.length} issue(s) found</div>`;
+                    
+                    this.detectedIssues.forEach((issue, index) => {
+                        const badgeClass = issue.type === 'spelling' ? 'bg-warning' : 'bg-info';
+                        issuesHtml += `
+                            <div class="border rounded p-2 mb-2">
+                                <span class="badge ${badgeClass}">${issue.type.toUpperCase()}</span>
+                                <strong>"${issue.original}"</strong> → <em>"${issue.suggested}"</em>
+                                <small class="text-muted d-block">${issue.description}</small>
+                            </div>
+                        `;
+                    });
+                    
+                    issuesList.innerHTML = issuesHtml;
+                }
+            }
+            
+            showNextCorrection() {
+                if (this.currentIssueIndex >= this.detectedIssues.length) {
+                    document.getElementById('downloadBtn').classList.remove('d-none');
+                    alert(`Review complete! ${this.acceptedCorrections.length} correction(s) accepted.`);
+                    return;
+                }
+                
+                const issue = this.detectedIssues[this.currentIssueIndex];
+                
+                const originalText = document.getElementById('originalText');
+                const suggestedText = document.getElementById('suggestedText');
+                const issueType = document.getElementById('issueType');
+                const issueDescription = document.getElementById('issueDescription');
+                
+                if (!originalText || !suggestedText || !issueType || !issueDescription) {
+                    console.error('Modal elements not found');
+                    return;
+                }
+                
+                originalText.textContent = issue.original;
+                suggestedText.textContent = issue.suggested;
+                issueType.textContent = issue.type.toUpperCase();
+                issueDescription.textContent = issue.description;
+                
+                const modal = new bootstrap.Modal(document.getElementById('correctionModal'));
+                modal.show();
+            }
+            
+            acceptCorrection() {
+                const issue = this.detectedIssues[this.currentIssueIndex];
+                this.acceptedCorrections.push(issue);
+                this.hideModalAndContinue();
+            }
+            
+            rejectCorrection() {
+                this.hideModalAndContinue();
+            }
+            
+            hideModalAndContinue() {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('correctionModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                this.currentIssueIndex++;
+                
+                setTimeout(() => {
+                    this.showNextCorrection();
+                }, 300);
+            }
+            
+            // Improved image optimization for PDF
+            optimizeImageForPDF(imageData, maxWidth = 1200, maxHeight = 1600, quality = 0.9) {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        // Calculate optimal dimensions
+                        let { width, height } = img;
+                        const aspectRatio = width / height;
+                        
+                        // Scale down only if necessary, maintaining aspect ratio
+                        if (width > maxWidth) {
+                            width = maxWidth;
+                            height = width / aspectRatio;
+                        }
+                        if (height > maxHeight) {
+                            height = maxHeight;
+                            width = height * aspectRatio;
+                        }
+                        
+                        // Set canvas size to optimized dimensions
+                        canvas.width = width;
+                        canvas.height = height;
+                        
+                        // Enable high-quality image rendering
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        
+                        // Fill with white background (in case of transparency)
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillRect(0, 0, width, height);
+                        
+                        // Draw the image with high quality
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // Convert to high-quality JPEG
+                        const optimizedData = canvas.toDataURL('image/jpeg', quality);
+                        
+                        resolve({
+                            imageData: optimizedData,
+                            width: width,
+                            height: height
+                        });
+                    };
+                    
+                    img.src = imageData;
+                });
+            }
+            
+            // Calculate PDF page dimensions and layout
+            calculatePDFLayout(imageWidth, imageHeight) {
+                // A4 page dimensions in points (210mm x 297mm)
+                const pageWidth = 595.28;
+                const pageHeight = 841.89;
+                
+                // Margins
+                const margin = 20;
+                const availableWidth = pageWidth - (2 * margin);
+                const availableHeight = pageHeight - (2 * margin) - 100; // Reserve space for text
+                
+                // Calculate image size to fit on page
+                let displayWidth = imageWidth;
+                let displayHeight = imageHeight;
+                const imageAspectRatio = imageWidth / imageHeight;
+                
+                // Scale to fit within available space
+                if (displayWidth > availableWidth) {
+                    displayWidth = availableWidth;
+                    displayHeight = displayWidth / imageAspectRatio;
+                }
+                
+                if (displayHeight > availableHeight) {
+                    displayHeight = availableHeight;
+                    displayWidth = displayHeight * imageAspectRatio;
+                }
+                
+                return {
+                    pageWidth,
+                    pageHeight,
+                    margin,
+                    imageWidth: displayWidth,
+                    imageHeight: displayHeight,
+                    imageX: margin,
+                    imageY: margin
+                };
+            }
+            
+            async downloadPDF() {
+                let PDFLib = null;
+                
+                if (window.jspdf && window.jspdf.jsPDF) {
+                    PDFLib = window.jspdf.jsPDF;
+                } else if (typeof jsPDF !== 'undefined') {
+                    PDFLib = jsPDF;
+                } else {
+                    alert('PDF library not loaded. Please refresh the page and try again.');
+                    return;
+                }
+                
+                // Create new modal instance for PDF generation
+                this.progressModalInstance = new bootstrap.Modal(document.getElementById('progressModal'));
+                
+                try {
+                    // Show progress modal
+                    document.getElementById('progressText').textContent = 'Generating high-quality PDF...';
+                    this.progressModalInstance.show();
+                    
+                    // Use the stored high-quality image data
+                    const imageBase64 = this.originalImageBase64 || await this.convertImageToBase64(this.uploadedImage);
+                    
+                    // Optimize image for PDF with high quality
+                    const optimizedImage = await this.optimizeImageForPDF(imageBase64, 1200, 1600, 0.95);
+                    
+                    // Create PDF with custom page size if needed
+                    const layout = this.calculatePDFLayout(optimizedImage.width, optimizedImage.height);
+                    const pdf = new PDFLib('portrait', 'pt', 'a4');
+                    
+                    // Add the optimized image
+                    pdf.addImage(
+                        optimizedImage.imageData, 
+                        'JPEG', 
+                        layout.imageX, 
+                        layout.imageY, 
+                        layout.imageWidth, 
+                        layout.imageHeight,
+                        undefined, // alias
+                        'MEDIUM' // compression
+                    );
+                    
+                    // Add corrections section
+                    let yPosition = layout.imageY + layout.imageHeight + 30;
+                    
+                    // Check if we need a new page for corrections
+                    const remainingSpace = layout.pageHeight - yPosition - layout.margin;
+                    const neededSpace = (this.acceptedCorrections.length * 30) + 60;
+                    
+                    if (neededSpace > remainingSpace && this.acceptedCorrections.length > 0) {
+                        pdf.addPage();
+                        yPosition = layout.margin + 20;
+                    }
+                    
+                    // Add title for corrections
+                    pdf.setFontSize(16);
+                    pdf.setFont(undefined, 'bold');
+                    pdf.setTextColor(0, 0, 0);
+                    pdf.text('Spell Check & Decimal Validation Results', layout.imageX, yPosition);
+                    yPosition += 30;
+                    
+                    if (this.acceptedCorrections.length === 0) {
+                        pdf.setFontSize(12);
+                        pdf.setFont(undefined, 'normal');
+                        pdf.setTextColor(0, 128, 0); // Green color
+                        pdf.text('✓ No corrections were needed - all text appears to be correct!', layout.imageX, yPosition);
+                    } else {
+                        pdf.setFontSize(14);
+                        pdf.setFont(undefined, 'bold');
+                        pdf.setTextColor(0, 0, 0);
+                        pdf.text('Accepted Corrections:', layout.imageX, yPosition);
+                        yPosition += 25;
+                        
+                        this.acceptedCorrections.forEach((correction, index) => {
+                            // Check if we need a new page
+                            if (yPosition > layout.pageHeight - layout.margin - 40) {
+                                pdf.addPage();
+                                yPosition = layout.margin + 20;
+                            }
+                            
+                            pdf.setFontSize(11);
+                            pdf.setFont(undefined, 'normal');
+                            pdf.setTextColor(0, 0, 0);
+                            
+                            const correctionText = `${index + 1}. "${correction.original}" → "${correction.suggested}"`;
+                            pdf.text(correctionText, layout.imageX + 10, yPosition);
+                            yPosition += 15;
+                            
+                            pdf.setFontSize(9);
+                            pdf.setFont(undefined, 'italic');
+                            pdf.setTextColor(100, 100, 100);
+                            const descriptionText = `    Type: ${correction.type.toUpperCase()} | ${correction.description}`;
+                            pdf.text(descriptionText, layout.imageX + 10, yPosition);
+                            yPosition += 20;
+                        });
+                    }
+                    
+                    // Add footer with timestamp
+                    const now = new Date();
+                    const timestamp = now.toLocaleString();
+                    pdf.setFontSize(8);
+                    pdf.setFont(undefined, 'normal');
+                    pdf.setTextColor(150, 150, 150);
+                    pdf.text(`Generated on: ${timestamp}`, layout.imageX, layout.pageHeight - layout.margin + 10);
+                    
+                    // Generate filename
+                    const originalName = this.uploadedImage.name;
+                    const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+                    const pdfFilename = `${nameWithoutExt}_OCR_Report.pdf`;
+                    
+                    // Save the PDF
+                    pdf.save(pdfFilename);
+                    
+                    console.log('High-quality PDF generated successfully');
+                    
+                } catch (error) {
+                    console.error('Error generating PDF:', error);
+                    alert('Error generating PDF. Please try again.');
+                } finally {
+                    // Always hide the progress modal
+                    this.hideProgressModal();
+                }
+            }
+        }
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            const app = new OCRSpellChecker();
+            window.app = app; // Make available globally for debugging
+        });
+    </script>
+</body>
+</html>
