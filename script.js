@@ -726,7 +726,7 @@ RULES:
                 const iconSize = 18;
 
                 const commentText = this.sanitizeTextForPDF(
-                    `Changed (${correction.original}) into (${correction.suggested})`
+                    `Changed "${correction.original}" into "${correction.suggested}"`
                 );
 
                 const safeX = Math.max(20, Math.min(x, page.getSize().width - iconSize - 5));
@@ -791,7 +791,7 @@ RULES:
     generateFilename() {
         const originalName = this.state.uploadedImage.name;
         const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
-        return `${nameWithoutExt}_OCR_Interactive_Report.pdf`;
+        return `${nameWithoutExt}.pdf`;
     }
 
     resetApp() {
