@@ -726,7 +726,7 @@ RULES:
                 const iconSize = 18;
 
                 const commentText = this.sanitizeTextForPDF(
-                    `Changed "${correction.original}" into "${correction.suggested}"`
+                    `Change "${correction.original}" into "${correction.suggested}"`
                 );
 
                 const safeX = Math.max(20, Math.min(x, page.getSize().width - iconSize - 5));
